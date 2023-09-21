@@ -157,9 +157,10 @@ void AdvancedMultiShiftCG<floatT, NStacks>::invert(
         cg++;
 
         pi0.copyFromStackToStack(pi, 0, 0);
-        pi0.updateAll(COMM_BOTH | Hyperplane);
+        /*pi0.updateAll(COMM_BOTH | Hyperplane);
 
-        dslash.applyMdaggM(s, pi0, false);
+        dslash.applyMdaggM(s, pi0, false);*/
+        dslash.applyMdaggM_async(s, pi0, false);//overlap
 
         s = sigma[0] * pi0 - s;
 
@@ -260,9 +261,10 @@ void ConjugateGradient<floatT, NStacks>::invert_new(
     do {
         cg++;
 
-        pi.updateAll(COMM_BOTH | Hyperplane);
+        /*pi.updateAll(COMM_BOTH | Hyperplane);
 
-        dslash.applyMdaggM(s, pi, false);
+        dslash.applyMdaggM(s, pi, false);*/
+        dslash.applyMdaggM_async(s, pi, false);//overlap
 
         dot = pi.dotProductStacked(s);
 
