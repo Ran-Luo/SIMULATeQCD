@@ -195,6 +195,16 @@ typedef floatT floatT_inner;
     template<unsigned BlockSize = (NStacks < 9 ? 128 : 64), typename Functor>
     void iterateOverBulk(Functor op, size_t Nmax = NStacks);
 
+
+
+    //overlap
+    template<unsigned BlockSize = (NStacks < 9 ? 128 : 64), typename Functor>
+    void iterateOverCenter(Functor op, size_t Nmax = NStacks);
+    template<unsigned BlockSize = (NStacks < 9 ? 128 : 64), typename Functor>
+    void iterateOverInnerHalo(Functor op, size_t Nmax = NStacks);
+
+
+        
     template<size_t stack, unsigned BlockSize = (NStacks < 9 ? 128 : 64), typename Functor>
     void iterateOverFullAtStack(Functor op);
 
@@ -234,6 +244,29 @@ typedef floatT floatT_inner;
         }
         return elems;
     }
+        
+
+
+    //overlap. Only suppose nodes=(1,1,*,1) for now.
+    size_t getNumberLatticePoints_Center(){
+        const int HaloDepthSpin = 4;
+        const int center_lz = GInd::getLatData().lz - (HaloDepthSpin<<1);
+        size_t elems = GInd::getLatData().vol2 * center_lz * GInd::getLatData().lt;
+        if (LatticeLayout != All) {
+            elems = elems>>1;
+        }
+        return elems;
+    }
+    size_t getNumberLatticePoints_InnerHalo(){
+        const int HaloDepthSpin = 4;
+        size_t elems = GInd::getLatData().vol2 * (HaloDepthSpin<<1) * GInd::getLatData().lt;
+        if (LatticeLayout != All) {
+            elems = elems>>1;
+        }
+        return elems;
+    }
+
+
 
     size_t getNumberLatticePointsFull(){
         size_t elems;
@@ -299,6 +332,33 @@ void Spinorfield<floatT, onDevice, LatticeLayout, HaloDepth, NStacks>::iterateOv
 
     this->template iterateFunctor<BlockSize>(op, calcGSite, writeAtRead, elems, Nmax);
 }
+
+
+
+//overlap.
+template<class floatT, bool onDevice, Layout LatticeLayout, size_t HaloDepth, size_t NStacks>
+template<unsigned BlockSize, typename Functor>
+void Spinorfield<floatT, onDevice, LatticeLayout, HaloDepth, NStacks>::iterateOverCenter(Functor op, size_t Nmax){
+    CalcGSiteStack_Center<LatticeLayout, HaloDepth> calcGSite;
+    WriteAtReadStack writeAtRead;
+    size_t elems = getNumberLatticePoints_Center();
+
+    cudaStream_t stream1;
+    cudaStreamCreate(&stream1);
+    this->template iterateFunctor<BlockSize>(op, calcGSite, writeAtRead, elems, Nmax, 1, stream1);
+    cudaStreamDestroy(stream1);
+}
+template<class floatT, bool onDevice, Layout LatticeLayout, size_t HaloDepth, size_t NStacks>
+template<unsigned BlockSize, typename Functor>
+void Spinorfield<floatT, onDevice, LatticeLayout, HaloDepth, NStacks>::iterateOverInnerHalo(Functor op, size_t Nmax){
+    CalcGSiteStack_InnerHalo<LatticeLayout, HaloDepth> calcGSite;
+    WriteAtReadStack writeAtRead;
+    size_t elems = getNumberLatticePoints_InnerHalo();
+
+    this->template iterateFunctor<BlockSize>(op, calcGSite, writeAtRead, elems, Nmax);
+}
+
+
 
 template<class floatT, bool onDevice, Layout LatticeLayout, size_t HaloDepth, size_t NStacks>
 template<size_t stack, unsigned BlockSize, typename Functor>
