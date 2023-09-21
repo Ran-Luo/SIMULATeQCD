@@ -567,6 +567,26 @@ struct CalcGSiteStack {
     }
 };
 
+
+
+//overlap
+template<Layout LatticeLayout, size_t HaloDepth>
+struct CalcGSiteStack_Center {
+    template<typename... Args>
+    inline __host__ __device__ gSiteStack operator()(Args... args) {
+        return GIndexer<LatticeLayout, HaloDepth>::getSiteStack_Center(args...);
+    }
+};
+template<Layout LatticeLayout, size_t HaloDepth>
+struct CalcGSiteStack_InnerHalo {
+    template<typename... Args>
+    inline __host__ __device__ gSiteStack operator()(Args... args) {
+        return GIndexer<LatticeLayout, HaloDepth>::getSiteStack_InnerHalo(args...);
+    }
+};
+
+
+
 template<Layout LatticeLayout, size_t HaloDepth>
 struct CalcGSiteStackFull {
     template<typename... Args>
