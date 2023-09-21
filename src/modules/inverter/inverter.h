@@ -14,6 +14,9 @@ template <typename Vector>
 class LinearOperator{
 public:
     virtual void applyMdaggM(Vector&, const Vector&, bool update = true) = 0;
+
+    //overlap
+    virtual void applyMdaggM_async(Vector&, Vector&, bool update = true) = 0;
 };
 
 
