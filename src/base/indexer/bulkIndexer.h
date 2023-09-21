@@ -575,6 +575,56 @@ public:
         return site.stack;
     }
     
+
+
+    //overlap. Only suppose Nodes = (1,1,*,1) for now.
+    __device__ __host__ inline static gSiteStack getSiteStack_Center(const dim3& _blockDim, const uint3& _blockIdx, const uint3& _threadIdx){
+        size_t tid = _blockDim.x * _blockIdx.x + _threadIdx.x;
+        if(LatLayout != All)tid = tid<<1;
+
+        size_t x, y, z, t;
+        size_t tmp;
+
+        const size_t HaloDepthSpin = 4;
+        const size_t center_lz = getLatData().lz - (HaloDepthSpin<<1);
+        const size_t center_vol3 = getLatData().vol2 * center_lz;
+
+        divmod(tid, center_vol3, t, tmp);
+        divmod(tmp,     getLatData().vol2, z, tmp);
+        divmod(tmp,     getLatData().vol1, y, x);
+
+        z += HaloDepthSpin;
+
+        if (LatLayout==Odd && !isOdd(x) && !isOdd(y + z + t))++x;
+        if (LatLayout==Even && !isOdd(x) && isOdd(y + z + t))++x;
+
+        return getSiteStack(getSite(x, y, z, t), _threadIdx.y);
+    }
+    __device__ __host__ inline static gSiteStack getSiteStack_InnerHalo(const dim3& _blockDim, const uint3& _blockIdx, const uint3& _threadIdx){
+        size_t tid = _blockDim.x * _blockIdx.x + _threadIdx.x;
+        if(LatLayout != All)tid = tid<<1;
+
+        size_t x, y, z, t;
+        size_t tmp;
+
+        const size_t HaloDepthSpin = 4;
+        const size_t ih_lz = HaloDepthSpin<<1;
+        const size_t ih_vol3 = getLatData().vol2 * ih_lz;
+
+        divmod(tid, ih_vol3, t, tmp);
+        divmod(tmp,     getLatData().vol2, z, tmp);
+        divmod(tmp,     getLatData().vol1, y, x);
+
+        if(z >= HaloDepthSpin)z += getLatData().lz - ih_lz;
+
+        if (LatLayout==Odd && !isOdd(x) && !isOdd(y + z + t))++x;
+        if (LatLayout==Even && !isOdd(x) && isOdd(y + z + t))++x;
+        
+        return getSiteStack(getSite(x, y, z, t), _threadIdx.y);
+    }
+
+
+    
     __device__ __host__ inline static gSiteStack getSiteStackOdd(const gSite& site, const size_t stack){
         size_t isiteStack;
         size_t isiteStackFull;
