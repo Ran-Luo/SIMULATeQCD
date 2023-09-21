@@ -19,6 +19,9 @@ public:
 
     //! This shall be a call of the M^\dagger M where M = m + D or similar
     virtual void applyMdaggM(SpinorRHS_t &, const SpinorRHS_t &, bool update = true) = 0;
+
+    //overlap
+    virtual void applyMdaggM_async(SpinorRHS_t &, SpinorRHS_t &, bool update = true) = 0;
 };
 
 
@@ -145,6 +148,13 @@ public:
     virtual void applyMdaggM_stacked(SpinorRHS_t &spinorOut, const SpinorRHS_t &spinorIn, bool update = false);
 
     virtual void applyMdaggM(SpinorRHS_t & spinorOut, const SpinorRHS_t &spinorIn, bool update = false);
+        
+
+    //overlap
+    virtual void applyMdaggM_async_nostack(SpinorRHS_t &spinorOut, SpinorRHS_t &spinorIn, bool update = false);
+    virtual void applyMdaggM_async_stacked(SpinorRHS_t &spinorOut, SpinorRHS_t &spinorIn, bool update = false);
+    virtual void applyMdaggM_async(SpinorRHS_t & spinorOut, SpinorRHS_t &spinorIn, bool update = false);
+    
     
     template<Layout LatLayout>
     HisqDslashFunctor<floatT, LatLayout, HaloDepthGauge, HaloDepthSpin>
