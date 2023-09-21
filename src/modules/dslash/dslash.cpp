@@ -186,6 +186,93 @@ void HisqDSlash<floatT, onDevice, LatLayoutRHS, HaloDepthGauge, HaloDepthSpin, N
     }
 }
 
+
+
+//overlap
+template<typename floatT, bool onDevice, Layout LatLayoutRHS, size_t HaloDepthGauge, size_t HaloDepthSpin, size_t NStacks, size_t NStacks_blockdim>
+void HisqDSlash<floatT, onDevice, LatLayoutRHS, HaloDepthGauge, HaloDepthSpin, NStacks, NStacks_blockdim>::applyMdaggM_async_nostack(SpinorRHS_t& spinorOut, SpinorRHS_t& spinorIn, bool update)
+{
+    spinorIn.updateAll_async(COMM_START | Hyperplane);
+    _tmpSpin.template iterateOverCenter<BLOCKSIZE>(getFunctor(spinorIn));
+    spinorIn.updateAll_async(COMM_FINISH | Hyperplane);
+    _tmpSpin.template iterateOverInnerHalo<BLOCKSIZE>(getFunctor(spinorIn));
+
+    _tmpSpin.updateAll_async(COMM_START | Hyperplane);
+    if(_mass != 0.0)
+    {
+        spinorOut.template iterateOverCenter<BLOCKSIZE>(general_subtract(spinorIn * _mass2, getFunctor(_tmpSpin)));
+        _tmpSpin.updateAll_async(COMM_FINISH | Hyperplane);
+        spinorOut.template iterateOverInnerHalo<BLOCKSIZE>(general_subtract(spinorIn * _mass2, getFunctor(_tmpSpin)));
+    }
+    else
+    {
+        spinorOut.template iterateOverCenter<BLOCKSIZE>(getFunctor(_tmpSpin));
+        _tmpSpin.updateAll_async(COMM_FINISH | Hyperplane);
+        spinorOut.template iterateOverInnerHalo<BLOCKSIZE>(getFunctor(_tmpSpin));
+    }
+
+    if(update)
+        spinorOut.updateAll();
+}
+
+//overlap
+template<typename floatT, bool onDevice, Layout LatLayoutRHS, size_t HaloDepthGauge, size_t HaloDepthSpin, size_t NStacks, size_t NStacks_blockdim>
+void HisqDSlash<floatT, onDevice, LatLayoutRHS, HaloDepthGauge, HaloDepthSpin, NStacks, NStacks_blockdim>::applyMdaggM_async_stacked(SpinorRHS_t& spinorOut, SpinorRHS_t& spinorIn, bool update)
+{
+    //Dx
+    spinorIn.updateAll_async(COMM_START | Hyperplane);
+
+    HisqDslashStackedFunctor<onDevice, floatT, LatLayoutRHS, HaloDepthGauge, HaloDepthSpin, NStacks, NStacks_blockdim> dslash_func(_tmpSpin, spinorIn,_gauge_smeared,_gauge_Naik,_c_3000);   
+    CalcGSiteStack_Center<LayoutSwitcher<LatLayoutRHS>(), HaloDepthSpin> calcGSite1;
+    cudaStream_t stream1;
+    cudaStreamCreate(&stream1);
+    iterateFunctorNoReturn<onDevice,BLOCKSIZE>(dslash_func,calcGSite1,_tmpSpin.getNumberLatticePoints_Center(),NStacks_blockdim,1,stream1);//async
+
+    spinorIn.updateAll_async(COMM_FINISH | Hyperplane);
+
+    CalcGSiteStack_InnerHalo<LayoutSwitcher<LatLayoutRHS>(), HaloDepthSpin> calcGSite2;
+    iterateFunctorNoReturn<onDevice,BLOCKSIZE>(dslash_func,calcGSite2,_tmpSpin.getNumberLatticePoints_InnerHalo(),NStacks_blockdim);//no async
+
+
+    //D(Dx)
+    _tmpSpin.updateAll_async(COMM_START | Hyperplane);
+
+    HisqDslashStackedFunctor<onDevice, floatT, LayoutSwitcher<LatLayoutRHS>(), HaloDepthGauge, HaloDepthSpin, NStacks, NStacks_blockdim> dslash_2nd(spinorOut,_tmpSpin, _gauge_smeared, _gauge_Naik, _c_3000);
+    CalcGSiteStack_Center<LatLayoutRHS, HaloDepthSpin> calcGSite3;
+    iterateFunctorNoReturn<onDevice,BLOCKSIZE>(dslash_2nd,calcGSite3,spinorOut.getNumberLatticePoints_Center(),NStacks_blockdim,1,stream1);//async
+    cudaStreamDestroy(stream1);
+
+    _tmpSpin.updateAll_async(COMM_FINISH | Hyperplane);
+
+    CalcGSiteStack_InnerHalo<LatLayoutRHS, HaloDepthSpin> calcGSite4;
+    iterateFunctorNoReturn<onDevice,BLOCKSIZE>(dslash_2nd,calcGSite4,spinorOut.getNumberLatticePoints_InnerHalo(),NStacks_blockdim);//no async
+
+    if (_mass != 0.0) {
+        spinorOut = (spinorIn * _mass2) - spinorOut;
+    }
+
+    if(update) {
+        spinorOut.updateAll();
+    }
+
+}
+
+//overlap
+template<typename floatT, bool onDevice, Layout LatLayoutRHS, size_t HaloDepthGauge, size_t HaloDepthSpin, size_t NStacks, size_t NStacks_blockdim>
+void HisqDSlash<floatT, onDevice, LatLayoutRHS, HaloDepthGauge, HaloDepthSpin, NStacks, NStacks_blockdim>::applyMdaggM_async(SpinorRHS_t& spinorOut, SpinorRHS_t& spinorIn, bool update){
+    if (NStacks_blockdim == 1) {
+        applyMdaggM_async_nostack(spinorOut,spinorIn,update);
+    }
+    else {
+        if (NStacks % NStacks_blockdim != 0) {
+            throw std::runtime_error(stdLogger.fatal("Error in Dslash call: Nstacks not divisible by NStacks_blockdim!"));
+        }
+        applyMdaggM_async_stacked(spinorOut, spinorIn, update);
+    }
+}
+
+
+
 template<typename floatT, bool onDevice, Layout LatLayoutRHS, size_t HaloDepthGauge, size_t HaloDepthSpin, size_t NStacks, size_t NStacks_blockdim>
 template<Layout LatLayout>
 HisqDslashFunctor<floatT, LatLayout, HaloDepthGauge, HaloDepthSpin> HisqDSlash<floatT, onDevice, LatLayoutRHS, HaloDepthGauge, HaloDepthSpin, NStacks, NStacks_blockdim>::getFunctor(const Spinorfield<floatT, onDevice, LatLayout, HaloDepthSpin, NStacks>& rhs){
