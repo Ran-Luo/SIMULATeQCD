@@ -770,11 +770,15 @@ void siteComm<floatT, onDevice, Accessor, AccType, EntryCount, ElemCount, LatLay
     // _commBase.globalBarrier();
 }
 
-//overlap: just removed four lines, no ohter modifications
+//overlap: just added two lines, no ohter modifications
 template<class floatT, bool onDevice, class Accessor, class AccType, size_t EntryCount, size_t ElemCount, Layout LatLayout, size_t HaloDepth>
 void siteComm<floatT, onDevice, Accessor, AccType, EntryCount, ElemCount, LatLayout, HaloDepth>::_injectHalosSeg_async(
         Accessor acc,
         COMPLEX(floatT) *HaloBuffer, unsigned int param) {
+
+    //the end of _extractHalosSeg
+    HaloInfo.syncAllStreamRequests();
+    _commBase.globalBarrier();
 
     typedef HaloIndexer<LatLayout, HaloDepth> HInd;
 
@@ -826,10 +830,10 @@ void siteComm<floatT, onDevice, Accessor, AccType, EntryCount, ElemCount, LatLay
         }
     }
 
-    // gpuError_t gpuErr = gpuDeviceSynchronize();
-    // if (gpuErr != gpuSuccess) {
-    //     GpuError("siteComm.h: _injectHalosSeg, gpuDeviceSynchronize failed:", gpuErr);
-    // }
+    gpuError_t gpuErr = gpuDeviceSynchronize();
+    if (gpuErr != gpuSuccess) {
+        GpuError("siteComm.h: _injectHalosSeg, gpuDeviceSynchronize failed:", gpuErr);
+    }
     _commBase.globalBarrier();
 
 }
